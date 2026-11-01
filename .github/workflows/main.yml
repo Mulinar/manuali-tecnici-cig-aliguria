@@ -1,0 +1,36 @@
+name: Crea APK Android
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Scarica progetto
+        uses: actions/checkout@v4
+
+      - name: Configura Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Configura Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Crea APK
+        run: chmod +x gradlew && ./gradlew assembleDebug
+
+      - name: Salva APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: APK-Android
+          path: app/build/outputs/apk/debug/*.apk
