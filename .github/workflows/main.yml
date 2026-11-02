@@ -14,8 +14,29 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Scarica progetto
+      - name: Scarica repository
         uses: actions/checkout@v4
+
+      - name: Estrai progetto Android dallo ZIP
+        shell: bash
+        run: |
+          set -euo pipefail
+          ZIP_FILE="$(find . -maxdepth 1 -type f -iname '*.zip' -print -quit)"
+          if [ -z "${ZIP_FILE}" ]; then
+            echo "ERRORE: non trovo lo ZIP del progetto Android nella cartella principale."
+            exit 1
+          fi
+          mkdir -p "${RUNNER_TEMP}/android-project"
+          unzip -q -o "${ZIP_FILE}" -d "${RUNNER_TEMP}/android-project"
+          SETTINGS_FILE="$(find "${RUNNER_TEMP}/android-project" -type f \( -name settings.gradle -o -name settings.gradle.kts \) -print -quit)"
+          if [ -z "${SETTINGS_FILE}" ]; then
+            echo "ERRORE: nello ZIP non è presente settings.gradle o settings.gradle.kts."
+            find "${RUNNER_TEMP}/android-project" -maxdepth 4 -type f | head -100
+            exit 1
+          fi
+          PROJECT_DIR="$(dirname "${SETTINGS_FILE}")"
+          echo "Progetto Gradle individuato in: ${PROJECT_DIR}"
+          echo "ANDROID_PROJECT_DIR=${PROJECT_DIR}" >> "${GITHUB_ENV}"
 
       - name: Configura Java
         uses: actions/setup-java@v4
@@ -25,12 +46,24 @@ jobs:
 
       - name: Configura Gradle
         uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
 
-      - name: Crea APK
-        run: chmod +x gradlew && ./gradlew assembleDebug
+      - name: Compila APK
+        shell: bash
+        run: |
+          set -euo pipefail
+          cd "${ANDROID_PROJECT_DIR}"
+          if [ -f ./gradlew ]; then
+            chmod +x ./gradlew
+            ./gradlew assembleDebug
+          else
+            gradle assembleDebug
+          fi
 
       - name: Salva APK
         uses: actions/upload-artifact@v4
         with:
-          name: APK-Android
-          path: app/build/outputs/apk/debug/*.apk
+          name: Manuali-Tecnici-CIGALIGURIA-APK
+          path: ${{ env.ANDROID_PROJECT_DIR }}/app/build/outputs/apk/debug/*.apk
+          if-no-files-found: error
